@@ -13,7 +13,10 @@ namespace CMU462 { // CMU462
 class SoftwareRenderer : public SVGRenderer {
  public:
 
-  SoftwareRenderer( ) : sample_rate (1) { }
+  SoftwareRenderer( ) :
+	  sample_rate (1) ,
+	  supersample_target (nullptr) 
+  { }
 
   // Free used resources
   virtual ~SoftwareRenderer( ) { }
@@ -31,6 +34,7 @@ class SoftwareRenderer : public SVGRenderer {
   // Clear render target
   inline void clear_target() {
     memset(render_target, 255, 4 * target_w * target_h);
+	memset(supersample_target, 255, 4 * target_w * target_h * sample_rate * sample_rate);
   }
 
   // Set texture sampler
@@ -50,6 +54,9 @@ class SoftwareRenderer : public SVGRenderer {
 
   // Render target memory location
   unsigned char* render_target; 
+
+  // Supersample target memory location
+  unsigned char* supersample_target;
 
   // Target buffer dimension (in pixels)
   size_t target_w; size_t target_h;
