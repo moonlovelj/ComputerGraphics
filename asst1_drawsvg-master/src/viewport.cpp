@@ -12,7 +12,10 @@ void ViewportImp::set_viewbox( float x, float y, float span ) {
   this->x = x;
   this->y = y;
   this->span = span; 
-
+  float scale = 1.0f / (2 * span);
+  svg_2_norm(0, 0) = svg_2_norm(1, 1) = scale;
+  svg_2_norm(0, 2) = -(x-span) * scale;
+  svg_2_norm(1, 2) = -(y-span) * scale;
 }
 
 void ViewportImp::update_viewbox( float dx, float dy, float scale ) { 

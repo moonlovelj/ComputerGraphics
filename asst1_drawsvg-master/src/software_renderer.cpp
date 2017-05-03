@@ -30,6 +30,12 @@ namespace CMU462 {
 		return 1 - fpart(x);
 	}
 
+	template <typename T>
+	inline T interpolate(const T& arg1, const T& arg2, float f)
+	{
+		return f * arg1 + (1.0f - f) * arg2;
+	}
+
 // Implements SoftwareRenderer //
 
 void SoftwareRendererImp::draw_svg( SVG& svg ) {
@@ -92,7 +98,10 @@ void SoftwareRendererImp::set_render_target( unsigned char* render_target,
 void SoftwareRendererImp::draw_element( SVGElement* element ) {
 
   // Task 5 (part 1):
-  // Modify this to implement the transformation stack
+  // Modify this to implement the transformation 
+
+	auto transformation_record = transformation;
+	transformation = transformation * element->transform;
 
   switch(element->type) {
     case POINT:
@@ -123,6 +132,7 @@ void SoftwareRendererImp::draw_element( SVGElement* element ) {
       break;
   }
 
+  transformation = transformation_record;
 }
 
 
@@ -250,38 +260,51 @@ void SoftwareRendererImp::draw_group( Group& group ) {
 // The input arguments in the rasterization functions 
 // below are all defined in screen space coordinates
 
+void SoftwareRendererImp::rasterize_super_point(float x, float y, Color color) {
+	// fill in the nearest pixel
+	int sx = (int)floor(x);
+	int sy = (int)floor(y);
+
+	int super_w = target_w * sample_rate;
+	int super_y = target_h * sample_rate;
+	// check bounds
+	if (sx < 0 || sx >= super_w) return;
+	if (sy < 0 || sy >= super_y) return;
+
+	int index = sy * super_w + sx;
+	supersample_target[4 * index] = (uint8_t)(color.r * 255);
+	supersample_target[4 * index + 1] = (uint8_t)(color.g * 255);
+	supersample_target[4 * index + 2] = (uint8_t)(color.b * 255);
+	supersample_target[4 * index + 3] = (uint8_t)(color.a * 255);
+}
+
 void SoftwareRendererImp::rasterize_point( float x, float y, Color color ) {
 
   // fill in the nearest pixel
+	x *= sample_rate; y *= sample_rate;
   int sx = (int) floor(x);
   int sy = (int) floor(y);
 
   // check bounds
-  if ( sx < 0 || sx >= target_w ) return;
-  if ( sy < 0 || sy >= target_h ) return;
+  if ( sx < 0 || sx >= target_w * sample_rate) return;
+  if ( sy < 0 || sy >= target_h * sample_rate) return;
 
-  // fill sample - NOT doing alpha blending!
-//   render_target[4 * (sx + sy * target_w)    ] = (uint8_t) (color.r * 255);
-//   render_target[4 * (sx + sy * target_w) + 1] = (uint8_t) (color.g * 255);
-//   render_target[4 * (sx + sy * target_w) + 2] = (uint8_t) (color.b * 255);
-//   render_target[4 * (sx + sy * target_w) + 3] = (uint8_t) (color.a * 255);
-  int square = sample_rate * sample_rate;
-  int start = (sy * target_w + sx)*square;
-  int end = start + square;
-  for (int i = start; i < end; i++)
+  for (int iy = sy; iy < sy + sample_rate; iy++)
   {
-	  supersample_target[4 * i] = (uint8_t)(color.r * 255);
-	  supersample_target[4 * i + 1] = (uint8_t)(color.g * 255);
-	  supersample_target[4 * i + 2] = (uint8_t)(color.b * 255);
-	  supersample_target[4 * i + 3] = (uint8_t)(color.a * 255);
+	  for (int ix = sx; ix < sx + sample_rate; ix++)
+	  {
+		  rasterize_super_point(ix, iy, color);
+	  }
   }
+
 }
 
-void SoftwareRendererImp::rasterize_line( float x0, float y0,
-                                          float x1, float y1,
-                                          Color color) {
-  // Task 2: 
-  // Implement line rasterization
+void SoftwareRendererImp::rasterize_line(float x0, float y0,
+	float x1, float y1,
+	Color color) {
+	// Task 2: 
+	// Implement line rasterization
+
 	bool steep = abs(y1 - y0) > abs(x1 - x0);
 
 	if (steep)
@@ -301,7 +324,7 @@ void SoftwareRendererImp::rasterize_line( float x0, float y0,
 	float gradient = 1.0f;
 	if (dx != 0.0f)
 		gradient = dy / dx;
-	
+
 	int xend = round(x0);
 	float yend = y0 + gradient*(xend - x0);
 	float xgap = rfpart(x0 + 0.5f);
@@ -311,12 +334,12 @@ void SoftwareRendererImp::rasterize_line( float x0, float y0,
 	if (steep)
 	{
 		rasterize_point(ypx11, xpx11, rfpart(yend)*xgap*color);
-		rasterize_point(ypx11+1, xpx11, fpart(yend)*xgap*color);
+		rasterize_point(ypx11 + 1, xpx11, fpart(yend)*xgap*color);
 	}
 	else
 	{
 		rasterize_point(xpx11, ypx11, rfpart(yend)*xgap*color);
-		rasterize_point(xpx11, ypx11+1, fpart(yend)*xgap*color);
+		rasterize_point(xpx11, ypx11 + 1, fpart(yend)*xgap*color);
 	}
 
 	float intery = yend + gradient;
@@ -340,16 +363,16 @@ void SoftwareRendererImp::rasterize_line( float x0, float y0,
 
 	if (steep)
 	{
-		for (int x = xpx11+1; x < xpx12; x++)
+		for (int x = xpx11 + 1; x < xpx12; x++)
 		{
 			rasterize_point(int(intery), x, rfpart(intery)*color);
-			rasterize_point(int(intery)+1, x, fpart(intery)*color);
+			rasterize_point(int(intery) + 1, x, fpart(intery)*color);
 			intery = intery + gradient;
 		}
 	}
 	else
 	{
-		for (int x = xpx11+1; x < xpx12; x++)
+		for (int x = xpx11 + 1; x < xpx12; x++)
 		{
 			rasterize_point(x, int(intery), rfpart(intery)*color);
 			rasterize_point(x, int(intery) + 1, fpart(intery)*color);
@@ -364,39 +387,39 @@ void SoftwareRendererImp::rasterize_triangle( float x0, float y0,
                                               Color color ) {
   // Task 3: 
   // Implement triangle rasterization
+
+	if ((x0 < 0 && x1 < 0 && x2 < 0) ||
+		(y0 < 0 && y1 < 0 && y2 < 0) ||
+		(x0 >= target_w && x1 >= target_w && x2 >= target_w) ||
+		(y0 >= target_h && y1 >= target_h && y2 >= target_h))
+		return;
+
+	x0 *= sample_rate; y0 *= sample_rate;
+	x1 *= sample_rate; y1 *= sample_rate;
+	x2 *= sample_rate; y2 *= sample_rate;
+	int super_w = target_w * sample_rate;
+	int super_h = target_h * sample_rate;
 	float dY0 = y1 - y0, dY1 = y2 - y1, dY2 = y0 - y2;
 	float dX0 = x1 - x0, dX1 = x2 - x1, dX2 = x0 - x2;
-	float minX = x0 < x1 ? x0 : x1; minX = minX < x2 ? minX : x2;
-	float maxX = x0 > x1 ? x0 : x1; maxX = maxX > x2 ? maxX : x2;
-	float minY = y0 < y1 ? y0 : y1; minY = minY < y2 ? minY : y2;
-	float maxY = y0 > y1 ? y0 : y1; maxY = maxY > y2 ? maxY : y2;
-	float gap = 1.0f / sample_rate;
 
-	for (float y = minY; y < maxY; y++)
+	int minX = floor(min(min(x0, x1), x2));
+	int minY = floor(min(min(y0, y1), y2));
+	int maxX = floor(max(max(x0, x1), x2));
+	int maxY = floor(max(max(y0, y1), y2));
+
+	for (int sy = minY; sy <= maxY; sy++)
 	{
-		for (float x = minX; x <= maxX; x++)
+		for (int sx = minX; sx <= maxX; sx++)
 		{
-			int sx = (int)floor(x);
-			int sy = (int)floor(y);
-			if (sx < 0 || sx >= target_w) continue;
-			if (sy < 0 || sy >= target_h) continue;
-			for (int iy = 0; iy < sample_rate; iy++)
+			if (sx < 0 || sx >= super_w) continue;
+			if (sy < 0 || sy >= super_h) continue;
+
+			bool b1 = (sx  - x0)*dY0 - (sy  - y0)*dX0 <= FLT_EPSILON;
+			bool b2 = (sx  - x1)*dY1 - (sy  - y1)*dX1 <= FLT_EPSILON;
+			bool b3 = (sx  - x2)*dY2 - (sy  - y2)*dX2 <= FLT_EPSILON;
+			if (b1 == b2 && b2 == b3)
 			{
-				for (int ix = 0; ix < sample_rate; ix++)
-				{
-					float fx = sx * sample_rate + 0.5 + ix;
-					float fy = sy * sample_rate + 0.5 + iy;
-					if ((fx*gap - x0)*dY0 - (fy*gap - y0)*dX0 <= 0 &&
-						(fx*gap - x1)*dY1 - (fy*gap - y1)*dX1 <= 0 &&
-						(fx*gap - x2)*dY2 - (fy*gap - y2)*dX2 <= 0)
-					{
-						int index = (sx + sy * target_w) * sample_rate * sample_rate + iy * sample_rate + ix;
-						supersample_target[4 * index] = (uint8_t)(color.r * 255);
-						supersample_target[4 * index + 1] = (uint8_t)(color.g * 255);
-						supersample_target[4 * index + 2] = (uint8_t)(color.b * 255);
-						supersample_target[4 * index + 3] = (uint8_t)(color.a * 255);
-					}
-				}
+				rasterize_super_point(sx, sy, color);
 			}
 
 		}
@@ -408,7 +431,7 @@ void SoftwareRendererImp::rasterize_image( float x0, float y0,
                                            Texture& tex ) {
   // Task 6: 
   // Implement image rasterization
-
+	
 }
 
 // resolve samples to render target
@@ -425,15 +448,21 @@ void SoftwareRendererImp::resolve( void ) {
 	  for (int x = 0; x < target_w; x++)
 	  {
 		  unsigned short r = 0, g = 0, b = 0, a = 0;
-		  int start = (y * target_w  + x)*square;
-		  int end = start + square;
-		  for (int i = start;i < end; i++)
+		  int startX = x * sample_rate, startY = y * sample_rate;
+		  int endX = (x + 1)*sample_rate, endY = (y + 1) * sample_rate;
+		  for (int sy = startY; sy < endY; sy++)
 		  {
-			  r += supersample_target[i*4];
-			  g += supersample_target[i*4 + 1];
-			  b += supersample_target[i*4 + 2];
-			  a += supersample_target[i*4 + 3];
+			  for (int sx = startX ; sx < endX; sx++)
+			  {
+				  int i = sy * target_w * sample_rate  + sx;
+				  r += supersample_target[i * 4];
+				  g += supersample_target[i * 4 + 1];
+				  b += supersample_target[i * 4 + 2];
+				  a += supersample_target[i * 4 + 3];
+			  }
 		  }
+			  
+	
 		  r *= denominator; g *= denominator; b *= denominator; a *= denominator;
 		  render_target[4 * (x + y * target_w)] = r;
 		  render_target[4 * (x + y * target_w) + 1] = g;

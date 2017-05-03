@@ -117,6 +117,7 @@ class SoftwareRendererImp : public SoftwareRenderer {
   void draw_group( Group& group );
 
   // Rasterization //
+  void rasterize_super_point(float x, float y, Color color);
 
   // rasterize a point
   void rasterize_point( float x, float y, Color color );
