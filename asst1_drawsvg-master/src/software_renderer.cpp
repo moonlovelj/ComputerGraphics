@@ -33,7 +33,7 @@ namespace CMU462 {
 	template <typename T>
 	inline T interpolate(const T& arg1, const T& arg2, float f)
 	{
-		return (1 - f) * arg1 + f * arg2;
+		return f * arg1 + (1.0f - f) * arg2;
 	}
 
 // Implements SoftwareRenderer //
@@ -431,7 +431,7 @@ void SoftwareRendererImp::rasterize_image( float x0, float y0,
                                            Texture& tex ) {
   // Task 6: 
   // Implement image rasterization
-
+	
 }
 
 // resolve samples to render target
