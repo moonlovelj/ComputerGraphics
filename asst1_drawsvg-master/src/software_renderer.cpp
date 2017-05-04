@@ -33,7 +33,7 @@ namespace CMU462 {
 	template <typename T>
 	inline T interpolate(const T& arg1, const T& arg2, float f)
 	{
-		return f * arg1 + (1.0f - f) * arg2;
+		return (1 - f)*arg1 + f*arg2;
 	}
 
 // Implements SoftwareRenderer //
