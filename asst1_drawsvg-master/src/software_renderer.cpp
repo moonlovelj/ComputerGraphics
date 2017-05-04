@@ -30,12 +30,6 @@ namespace CMU462 {
 		return 1 - fpart(x);
 	}
 
-	template <typename T>
-	inline T interpolate(const T& arg1, const T& arg2, float f)
-	{
-		return (1 - f)*arg1 + f*arg2;
-	}
-
 // Implements SoftwareRenderer //
 
 void SoftwareRendererImp::draw_svg( SVG& svg ) {
@@ -431,7 +425,15 @@ void SoftwareRendererImp::rasterize_image( float x0, float y0,
                                            Texture& tex ) {
   // Task 6: 
   // Implement image rasterization
-	
+	for (float x = x0; x < x1; x++)
+	{
+		for (float y = y0; y < y1; y++)
+		{
+			float u = (x1 - x0) == 0 ? 1 : (x - x0) / (x1 - x0);
+			float v = (y1 - y0) == 0 ? 1 : (y - y0) / (y1 - y0);
+			rasterize_point(x, y, sampler->sample_bilinear(tex, u, v));
+		}
+	}
 }
 
 // resolve samples to render target

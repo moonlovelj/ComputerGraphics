@@ -25,6 +25,12 @@ inline void float_to_uint8( unsigned char* dst, float src[4] ) {
   dst_uint8[3] = (uint8_t) ( 255.f * max( 0.0f, min( 1.0f, src[3])));
 }
 
+template <typename T>
+inline T interpolate(T arg1, T arg2, float t)
+{
+	return arg1 + t * (arg2 - arg1);
+}
+
 void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
   // NOTE(sky): 
@@ -83,10 +89,22 @@ Color Sampler2DImp::sample_nearest(Texture& tex,
                                    int level) {
 
   // Task 6: Implement nearest neighbour interpolation
-  
-  // return magenta for invalid level
-  return Color(1,0,1,1);
+	MipLevel mipTex = tex.mipmap[level];
+	float x = mipTex.width * u;
+	float y = mipTex.height * v;
+	int sx = floor(x);
+	if (x - sx >= 0.5f) ++sx;
+	int sy = floor(y);
+	if (y - sy >= 0.5f) ++sy;
 
+	int index = (sy * mipTex.width + sx) * 4;
+	float f = 1.0f / 255;
+	float r = mipTex.texels[index] * f;
+	float g = mipTex.texels[index + 1] * f;
+	float b = mipTex.texels[index + 2] * f;
+	float a = mipTex.texels[index + 3] * f;
+  // return magenta for invalid level
+	return Color(r, g, b, a);
 }
 
 Color Sampler2DImp::sample_bilinear(Texture& tex, 
@@ -94,10 +112,31 @@ Color Sampler2DImp::sample_bilinear(Texture& tex,
                                     int level) {
   
   // Task 6: Implement bilinear filtering
+	MipLevel mipTex = tex.mipmap[level];
+	float x = mipTex.width * u;
+	float y = mipTex.height * v;
+	int sx = floor(x), sy = floor(y);
+	float tx = x - sx, ty = y - sy;
 
+	int r1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx)], mipTex.texels[4 * (sy * mipTex.width + sx + 1)],tx);
+	int g1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 1], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 1], tx);
+	int b1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 2], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 2], tx);
+	int a1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 3], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 3], tx);
+
+	int r2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx)], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1)], tx);
+	int g2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 1], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 1], tx);
+	int b2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 2], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 2], tx);
+	int a2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 3], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 3], tx);
+
+	int r = interpolate(r1, r2, ty);
+	int g = interpolate(g1, g2, ty);
+	int b = interpolate(b1, b2, ty);
+	int a = interpolate(a1, a2, ty);
+
+	float f = 1.f / 255;
+	
   // return magenta for invalid level
-  return Color(1,0,1,1);
-
+	return Color(r * f, g * f, b * f, a * f);
 }
 
 Color Sampler2DImp::sample_trilinear(Texture& tex, 
