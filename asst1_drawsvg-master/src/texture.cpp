@@ -26,10 +26,22 @@ inline void float_to_uint8( unsigned char* dst, float src[4] ) {
 }
 
 template <typename T>
-inline T interpolate(T arg1, T arg2, float t)
+inline T interpolate(const T& arg1, const T& arg2, float t)
 {
 	return arg1 + t * (arg2 - arg1);
 }
+
+inline Color sip(const MipLevel& tex, int x, int y)
+{
+	if (x < 0) x = 0;
+	if (y < 0) y = 0;
+	if (x > tex.width - 1) x = tex.width - 1;
+	if (y > tex.height - 1) y = tex.height - 1;
+	int index = 4 * (y * tex.width + x);
+	float f = 1.f / 255;
+	return Color(tex.texels[index] * f, tex.texels[index+1] * f, tex.texels[index+2] * f, tex.texels[index+3] * f);
+}
+
 
 void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
@@ -76,12 +88,18 @@ void Sampler2DImp::generate_mips(Texture& tex, int startLevel) {
 
     Color c = colors[i % 3];
     MipLevel& mip = tex.mipmap[i];
-
-    for(size_t i = 0; i < 4 * mip.width * mip.height; i += 4) {
-      float_to_uint8( &mip.texels[i], &c.r );
+	
+    for(size_t j = 0; j < 4 * mip.width * mip.height; j += 4) {
+	  int index = j * 0.25f;
+	  int x = index % mip.width;
+	  int y = index / mip.width;
+	  Color c = 0.25f * sip(tex.mipmap[i - 1], 2*x, 2*y) +
+		  0.25f * sip(tex.mipmap[i - 1], 2*x + 1, 2*y) +
+		  0.25f * sip(tex.mipmap[i - 1], 2*x, 2*y + 1) +
+		  0.25f * sip(tex.mipmap[i - 1], 2*x + 1,2*y + 1);
+	  float_to_uint8(&mip.texels[j], &c.r);
     }
   }
-
 }
 
 Color Sampler2DImp::sample_nearest(Texture& tex, 
@@ -89,54 +107,37 @@ Color Sampler2DImp::sample_nearest(Texture& tex,
                                    int level) {
 
   // Task 6: Implement nearest neighbour interpolation
-	MipLevel mipTex = tex.mipmap[level];
-	float x = mipTex.width * u;
-	float y = mipTex.height * v;
-	int sx = floor(x);
-	if (x - sx >= 0.5f) ++sx;
-	int sy = floor(y);
-	if (y - sy >= 0.5f) ++sy;
+	if (level < 0 || level >= tex.mipmap.size())
+		return Color(1, 0, 1, 1);
 
-	int index = (sy * mipTex.width + sx) * 4;
-	float f = 1.0f / 255;
-	float r = mipTex.texels[index] * f;
-	float g = mipTex.texels[index + 1] * f;
-	float b = mipTex.texels[index + 2] * f;
-	float a = mipTex.texels[index + 3] * f;
+	MipLevel mipTex = tex.mipmap[level];
+	float x = mipTex.width * u - 0.5f;
+	float y = mipTex.height * v - 0.5f;
+	int sx = floor(x), sy = floor(y);
+	if (x - sx >= 0.5f) ++sx;
+	if (y - sy >= 0.5f) ++sy;
   // return magenta for invalid level
-	return Color(r, g, b, a);
+	return sip(mipTex, sx, sy);
 }
 
 Color Sampler2DImp::sample_bilinear(Texture& tex, 
                                     float u, float v, 
                                     int level) {
-  
+  if (level < 0 || level >= tex.mipmap.size())
+	  return Color(1, 0, 1, 1);
+
   // Task 6: Implement bilinear filtering
 	MipLevel mipTex = tex.mipmap[level];
-	float x = mipTex.width * u;
-	float y = mipTex.height * v;
+	float x = mipTex.width * u - 0.5f;
+	float y = mipTex.height * v - 0.5f;
 	int sx = floor(x), sy = floor(y);
 	float tx = x - sx, ty = y - sy;
 
-	int r1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx)], mipTex.texels[4 * (sy * mipTex.width + sx + 1)],tx);
-	int g1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 1], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 1], tx);
-	int b1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 2], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 2], tx);
-	int a1 = interpolate(mipTex.texels[4 * (sy * mipTex.width + sx) + 3], mipTex.texels[4 * (sy * mipTex.width + sx + 1) + 3], tx);
-
-	int r2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx)], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1)], tx);
-	int g2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 1], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 1], tx);
-	int b2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 2], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 2], tx);
-	int a2 = interpolate(mipTex.texels[4 * ((sy + 1) * mipTex.width + sx) + 3], mipTex.texels[4 * ((sy + 1) * mipTex.width + sx + 1) + 3], tx);
-
-	int r = interpolate(r1, r2, ty);
-	int g = interpolate(g1, g2, ty);
-	int b = interpolate(b1, b2, ty);
-	int a = interpolate(a1, a2, ty);
-
-	float f = 1.f / 255;
+	Color c1 = interpolate(sip(mipTex,sx,sy), sip(mipTex, sx+1,sy),tx);
+	Color c2 = interpolate(sip(mipTex, sx, sy+1), sip(mipTex, sx + 1, sy+1), tx);
 	
   // return magenta for invalid level
-	return Color(r * f, g * f, b * f, a * f);
+	return interpolate(c1, c2, ty);
 }
 
 Color Sampler2DImp::sample_trilinear(Texture& tex, 
@@ -144,10 +145,16 @@ Color Sampler2DImp::sample_trilinear(Texture& tex,
                                      float u_scale, float v_scale) {
 
   // Task 7: Implement trilinear filtering
+	float L = max(u_scale * tex.width, v_scale * tex.height);
+	float d = log2f(L);
+	int level = floor(d);
+	if (level < 0) return sample_bilinear(tex, u, v, 0);
+	if (level >= tex.mipmap.size() - 1) return sample_bilinear(tex, u, v, tex.mipmap.size() - 1);
+	Color c1 = sample_bilinear(tex, u, v, level);
+	Color c2 = sample_bilinear(tex, u, v, level + 1);
 
   // return magenta for invalid level
-  return Color(1,0,1,1);
-
+	return interpolate(c1, c2, d - level);
 }
 
 } // namespace CMU462
