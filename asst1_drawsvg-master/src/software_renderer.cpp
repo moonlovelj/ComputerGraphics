@@ -266,6 +266,17 @@ void SoftwareRendererImp::rasterize_super_point(float x, float y, Color color) {
 	if (sy < 0 || sy >= super_y) return;
 
 	int index = sy * super_w + sx;
+
+	// Alpha blend
+	float cr = supersample_target[4 * index] / 255.f;
+	float cg = supersample_target[4 * index + 1] / 255.f;
+	float cb = supersample_target[4 * index + 2] / 255.f;
+	float ca = supersample_target[4 * index + 3] / 255.f;
+	color.r = clamp((1 - color.a) * cr * ca + color.r * color.a, 0.f, 1.f);
+	color.g = clamp((1 - color.a) * cg * ca+ color.g * color.a, 0.f, 1.f);
+	color.b = clamp((1 - color.a) * cb * ca+ color.b * color.a, 0.f, 1.f);
+	color.a = clamp((1 - color.a) * ca + color.a, 0.f, 1.f);
+	
 	supersample_target[4 * index] = (uint8_t)(color.r * 255);
 	supersample_target[4 * index + 1] = (uint8_t)(color.g * 255);
 	supersample_target[4 * index + 2] = (uint8_t)(color.b * 255);
