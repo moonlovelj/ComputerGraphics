@@ -447,19 +447,6 @@ void SoftwareRendererImp::rasterize_image( float x0, float y0,
 			rasterize_super_point(x, y, sampler->sample_trilinear(tex, u, v, xw,yh));
 		}
 	}
-
-
-	for (float x = x0; x < x1; x++)
-	{
-		for (float y = y0; y < y1; y++)
-		{
-			float u = (x1 - x0) == 0 ? 1 : (x - x0) / (x1 - x0);
-			float v = (y1 - y0) == 0 ? 1 : (y - y0) / (y1 - y0);
-			float u_scale = 1.f / (x1 - x0);
-			float v_scale = 1.f / (y1 - y0);
-			rasterize_point(x, y, sampler->sample_trilinear(tex, u, v, u_scale, v_scale));
-		}
-	}
 }
 
 // resolve samples to render target
