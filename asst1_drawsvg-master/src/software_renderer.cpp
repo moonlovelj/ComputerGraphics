@@ -425,6 +425,30 @@ void SoftwareRendererImp::rasterize_image( float x0, float y0,
                                            Texture& tex ) {
   // Task 6: 
   // Implement image rasterization
+	int xs0 = floor(x0 * sample_rate), xs1 = ceil(x1 * sample_rate);
+	int ys0 = floor(y0 * sample_rate), ys1 = ceil(y1 * sample_rate);
+	int super_w = target_w * sample_rate;
+	int super_h = target_h * sample_rate;
+	float xw = 1.f / (xs1 - xs0); 
+	float yh = 1.f / (ys1 - ys0);
+
+	for (int x = xs0; x <= xs1; x++)
+	{
+		if (x < 0 || x >= super_w) 
+			continue;
+
+		float u = (x - xs0) * xw;
+		for (int y = ys0; y <= ys1; y++)
+		{
+			if (y < 0 || y >= super_h)
+				continue;
+
+			float v = (y - ys0) * yh;
+			rasterize_super_point(x, y, sampler->sample_trilinear(tex, u, v, xw,yh));
+		}
+	}
+
+
 	for (float x = x0; x < x1; x++)
 	{
 		for (float y = y0; y < y1; y++)
